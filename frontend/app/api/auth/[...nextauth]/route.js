@@ -1,5 +1,5 @@
-import NextAuth from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
+import NextAuth from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
 
 const handler = NextAuth({
   providers: [
@@ -9,27 +9,50 @@ const handler = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn(params){
-      
+    // Called whenever a user signs in
+    async signIn({ user }) {
+      try {
+        // Make sure your Django endpoint matches this path
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email,
+            username: user.name,
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to sync user with Django:", err);
+      }
+
+      return true; // allow sign-in
     },
+
+    // Add JWT custom fields
     async jwt({ token, user, account }) {
       if (account && user) {
-        token.accessToken = account.access_token
-        token.userId = user.id
-        token.role = user.role || "client"
+        token.accessToken = account.access_token;
+        token.email = user.email;
       }
-      return token
+      return token;
     },
+
+    // Add custom fields to session object
     async session({ session, token }) {
-      session.accessToken = token.accessToken
-      session.userId = token.userId
-      session.role = token.role
-      return session
+      session.accessToken = token.accessToken;
+      session.user = {
+        email: token.email,
+      };
+      return session;
     },
+
+    // Redirect after login
     async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`
-      else if (new URL(url).origin === baseUrl) return url
-      return baseUrl
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     },
   },
   pages: {
@@ -39,6 +62,6 @@ const handler = NextAuth({
   session: {
     strategy: "jwt",
   },
-})
+});
 
-export { handler as GET, handler as POST }
+export { handler as GET, handler as POST };
