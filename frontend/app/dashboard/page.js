@@ -1,7 +1,7 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,22 +15,77 @@ import {
   Plus,
   LogOut,
   Search,
-  Filter
+  Filter,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
+import { ServicesList, BookingsList } from "./components"
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState("overview")
+  const roleFromUrl = searchParams?.get("role")
+  const [stats, setStats] = useState(null)
+  const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
     if (status === "loading") return
     if (!session) {
       router.push("/auth/signin")
+      return
     }
-  }, [session, status, router])
+    const persistRole = async () => {
+      try {
+        const selected = roleFromUrl || (typeof window !== "undefined" ? localStorage.getItem("npw_role") : null) || "customer"
+        if (typeof window !== "undefined") {
+          localStorage.setItem("npw_role", selected)
+        }
+    
+        if (process.env.NEXT_PUBLIC_API_URL && session?.user?.email) {
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: session.user.email, username: session.user.name, role: selected })
+          })
+        }
+      } catch (e) {
+        console.error("Failed persisting role", e)
+      }
+    }
+    persistRole()
+  }, [session, status, router, roleFromUrl])
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!session?.user?.email || !session?.accessToken) return  
+      setLoadingStats(true)
+  
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/accounts/user-stats/`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${session.accessToken}`, 
+            },
+          }
+        )
+        if (!res.ok) throw new Error("Failed to fetch stats")
+        const data = await res.json()
+        setStats(data)
+      } catch (error) {
+        console.error("Failed to fetch stats:", error)
+      } finally {
+        setLoadingStats(false)
+      }
+    }
+  
+    fetchStats()
+  }, [session])
+  
 
   if (status === "loading") {
     return (
@@ -45,8 +100,13 @@ export default function DashboardPage() {
   }
 
   const handleSignOut = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("npw_role")
+    }
     signOut({ callbackUrl: "/" })
   }
+
+  const currentRole = roleFromUrl || (typeof window !== "undefined" && localStorage.getItem("npw_role")) || "customer"
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -55,10 +115,20 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <img src="/logo.png" alt="NepWork" className="h-8 w-8 mr-3" />
               <h1 className="text-xl font-semibold text-gray-900">NepWork Dashboard</h1>
+              <span className="ml-3 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                {currentRole === "provider" ? "Service Provider" : currentRole === "admin" ? "Admin" : "Client"}
+              </span>
             </div>
             <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => router.push("/role-switch")}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Switch Role
+              </Button>
               <div className="flex items-center space-x-2">
                 <img
                   src={session.user?.image || "/logo.png"}
@@ -82,8 +152,8 @@ export default function DashboardPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="services">Services</TabsTrigger>
-            <TabsTrigger value="bookings">Bookings</TabsTrigger>
+            <TabsTrigger value="services">{currentRole === "provider" ? "My Services" : "Services"}</TabsTrigger>
+            <TabsTrigger value="bookings">{currentRole === "provider" ? "Orders" : "Bookings"}</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
           </TabsList>
 
@@ -91,13 +161,17 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Services</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    {currentRole === "provider" ? "Total Services" : "Services Used"}
+                  </CardTitle>
                   <Briefcase className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">12</div>
+                  <div className="text-2xl font-bold">
+                    {loadingStats ? "..." : stats?.[currentRole === "provider" ? "total_services" : "total_bookings"] || 0}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    +2 from last month
+                    {currentRole === "provider" ? "Active services" : "Total bookings"}
                   </p>
                 </CardContent>
               </Card>
@@ -108,22 +182,31 @@ export default function DashboardPage() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">5</div>
+                  <div className="text-2xl font-bold">
+                    {loadingStats ? "..." : stats?.active_bookings || stats?.pending_bookings || 0}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    +1 from last week
+                    {currentRole === "provider" ? "Pending orders" : "Current bookings"}
                   </p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Rating</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    {currentRole === "provider" ? "Rating" : "Completed"}
+                  </CardTitle>
                   <Star className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">4.8</div>
+                  <div className="text-2xl font-bold">
+                    {loadingStats ? "..." : currentRole === "provider" 
+                      ? (stats?.average_rating || 0) 
+                      : (stats?.completed_bookings || 0)
+                    }
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    +0.2 from last month
+                    {currentRole === "provider" ? "Average rating" : "Completed jobs"}
                   </p>
                 </CardContent>
               </Card>
@@ -132,40 +215,17 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm">New service booking received</span>
-                      <span className="text-xs text-muted-foreground ml-auto">2h ago</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm">Service completed successfully</span>
-                      <span className="text-xs text-muted-foreground ml-auto">1d ago</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm">New review received</span>
-                      <span className="text-xs text-muted-foreground ml-auto">3d ago</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
                   <CardTitle>Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Button asChild className="w-full">
-                    <Link href="/services/new">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Post New Service
-                    </Link>
-                  </Button>
+                  {currentRole === "provider" && (
+                    <Button asChild className="w-full">
+                      <Link href="/services/new">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Post New Service
+                      </Link>
+                    </Button>
+                  )}
                   <Button asChild variant="outline" className="w-full">
                     <Link href="/services">
                       <Search className="h-4 w-4 mr-2" />
@@ -180,54 +240,48 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Account Info</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Name:</span>
+                    <span className="text-sm font-medium">{session.user?.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Email:</span>
+                    <span className="text-sm font-medium">{session.user?.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Role:</span>
+                    <span className="text-sm font-medium capitalize">{currentRole}</span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
           <TabsContent value="services" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">My Services</h2>
-              <Button asChild>
-                <Link href="/services/new">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Service
-                </Link>
-              </Button>
+              <h2 className="text-2xl font-bold">{currentRole === "provider" ? "My Services" : "Available Services"}</h2>
+              {currentRole === "provider" && (
+                <Button asChild>
+                  <Link href="/services/new">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Service
+                  </Link>
+                </Button>
+              )}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Sample services would be mapped here */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Web Development</CardTitle>
-                  <p className="text-sm text-muted-foreground">Custom websites and applications</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-blue-600">Rs. 25,000</span>
-                    <Button variant="outline" size="sm">Edit</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <ServicesList role={currentRole} session={session} />
           </TabsContent>
 
           <TabsContent value="bookings" className="space-y-6">
             <h2 className="text-2xl font-bold">My Bookings</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Sample bookings would be mapped here */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Home Cleaning</CardTitle>
-                  <p className="text-sm text-muted-foreground">Scheduled for tomorrow</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-green-600">Confirmed</span>
-                    <Button variant="outline" size="sm">View Details</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <BookingsList role={currentRole} session={session} />
           </TabsContent>
 
           <TabsContent value="profile" className="space-y-6">

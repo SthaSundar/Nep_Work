@@ -35,6 +35,10 @@ const handler = NextAuth({
       if (account && user) {
         token.accessToken = account.access_token;
         token.email = user.email;
+        token.name = user.name;
+        token.picture = user.image;
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+        token.role = token.email && adminEmail && token.email === adminEmail ? "admin" : (token.role || "customer");
       }
       return token;
     },
@@ -42,8 +46,11 @@ const handler = NextAuth({
     // Add custom fields to session object
     async session({ session, token }) {
       session.accessToken = token.accessToken;
+      session.role = token.role || "customer";
       session.user = {
         email: token.email,
+        name: token.name,
+        image: token.picture,
       };
       return session;
     },

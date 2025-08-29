@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/components/auth-provider";
 import Navigation from "@/components/navigation";
+import { usePathname } from "next/navigation";
 import Footer from "@/components/footer";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -14,6 +15,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
+  const hideNav = pathname?.startsWith("/dashboard") || pathname?.startsWith("/admin");
   return (
     <html lang="en" suppressHydrationWarning>
           <body className={inter.className}>
@@ -24,7 +27,7 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               <AuthProvider>
-                <Navigation />
+                {!hideNav && <Navigation />}
                 {children}
                 <Footer />
                 <Toaster />

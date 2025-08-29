@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,7 +26,8 @@ SECRET_KEY = 'django-insecure-h2(x2nnw47j1mw5_-0m+n!xi20(-%a398=7=ngoi&=3_)so768
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL") or "admin2505@gmail.com"
 
 
 # Application definition
@@ -65,17 +67,30 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'newpwork_backend_new.urls'
 WSGI_APPLICATION = 'newpwork_backend_new.wsgi.application'
 AUTH_USER_MODEL = 'accounts.User'
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_HEADERS = True
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
 SITE_ID = 1
 
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "accounts.auth.JWTAuthentication",  # <-- our JWT auth
+        "rest_framework.authentication.SessionAuthentication",
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
 }
 

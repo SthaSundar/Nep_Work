@@ -21,6 +21,7 @@ export default function AdminDashboard() {
     const { data: session, status } = useSession()
     const router = useRouter()
     const [activeTab, setActiveTab] = useState("overview")
+    const [stats, setStats] = useState(null)
 
     useEffect(() => {
         if (status === "loading") return
@@ -28,6 +29,22 @@ export default function AdminDashboard() {
             router.push("/auth/signin")
         }
     }, [session, status, router])
+
+    useEffect(() => {
+        const loadStats = async () => {
+            try {
+                if (!process.env.NEXT_PUBLIC_API_URL) return
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/stats/`)
+                if (res.ok) {
+                    const data = await res.json()
+                    setStats(data)
+                }
+            } catch (e) {
+                console.error("Failed to fetch stats", e)
+            }
+        }
+        loadStats()
+    }, [])
 
     if (status === "loading") {
         return (
@@ -50,6 +67,9 @@ export default function AdminDashboard() {
                     <p className="mt-2 text-lg text-gray-600">
                         Manage users, services, categories, and disputes
                     </p>
+                    {process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
+                        <p className="mt-1 text-sm text-gray-500">Admin access email: {process.env.NEXT_PUBLIC_ADMIN_EMAIL}</p>
+                    )}
                 </div>
             </div>
 
@@ -70,7 +90,7 @@ export default function AdminDashboard() {
                                     <Users className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">1,234</div>
+                                    <div className="text-2xl font-bold">{stats?.total_users ?? "-"}</div>
                                     <p className="text-xs text-muted-foreground">
                                         +12% from last month
                                     </p>
@@ -79,11 +99,11 @@ export default function AdminDashboard() {
 
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Active Services</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Customers</CardTitle>
                                     <Briefcase className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">567</div>
+                                    <div className="text-2xl font-bold">{stats?.customers ?? "-"}</div>
                                     <p className="text-xs text-muted-foreground">
                                         +8% from last month
                                     </p>
@@ -92,11 +112,11 @@ export default function AdminDashboard() {
 
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Open Disputes</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Providers</CardTitle>
                                     <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">23</div>
+                                    <div className="text-2xl font-bold">{stats?.providers ?? "-"}</div>
                                     <p className="text-xs text-muted-foreground">
                                         -5% from last month
                                     </p>

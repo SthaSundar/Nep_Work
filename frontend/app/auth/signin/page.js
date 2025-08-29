@@ -27,6 +27,10 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
+      // Remember selected role locally for post-login use
+      if (typeof window !== "undefined") {
+        localStorage.setItem("npw_role", role)
+      }
       await signIn("google", {
         callbackUrl: `/dashboard?role=${role}`,
       })
@@ -37,7 +41,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-indigo-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <Image
