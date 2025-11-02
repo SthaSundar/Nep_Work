@@ -21,12 +21,12 @@ export default function RoleSwitcher() {
     }, [])
 
     const switchRole = async (newRole) => {
-        if (!session?.user?.email) return
+        if (!session?.user?.email || loading) return
 
         setLoading(true)
         try {
             // Update role in backend
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -36,6 +36,11 @@ export default function RoleSwitcher() {
                 })
             })
 
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}))
+                throw new Error(errorData.error || errorData.detail || "Failed to switch role")
+            }
+
             // Update local storage
             localStorage.setItem("npw_role", newRole)
             setCurrentRole(newRole)
@@ -44,6 +49,7 @@ export default function RoleSwitcher() {
             router.push(`/dashboard?role=${newRole}`)
         } catch (error) {
             console.error("Failed to switch role:", error)
+            alert(`Failed to switch role: ${error.message || "Unknown error"}`)
         } finally {
             setLoading(false)
         }
@@ -63,8 +69,8 @@ export default function RoleSwitcher() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md">
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
+            <Card className="w-full max-w-md border-blue-200">
                 <CardHeader className="text-center">
                     <CardTitle>Choose Your Role</CardTitle>
                     <p className="text-sm text-muted-foreground">
@@ -123,5 +129,8 @@ export default function RoleSwitcher() {
         </div>
     )
 }
+
+
+
 
 

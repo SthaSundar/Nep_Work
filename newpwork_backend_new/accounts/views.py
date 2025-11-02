@@ -3,11 +3,96 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Count
-from .models import User, UserRole
+from .models import User, UserRole, KYCVerification
 from django.conf import settings
 from services.models import Service
 from bookings.models import Booking
 from django.db import models
+from django.contrib.auth import authenticate
+from django.utils import timezone
+from .serializers import KYCVerificationSerializer, UserSerializer
+import jwt
+from datetime import datetime, timedelta
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login(request):
+    """Login with email/password and return JWT token"""
+    email = request.data.get("email")
+    password = request.data.get("password")
+
+    if not email or not password:
+        return Response({"error": "Email and password required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if not user.check_password(password):
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    # Generate JWT token
+    secret = getattr(settings, "NEXTAUTH_SECRET", settings.SECRET_KEY)
+    payload = {
+        "email": user.email,
+        "exp": datetime.utcnow() + timedelta(days=7),
+        "iat": datetime.utcnow()
+    }
+    token = jwt.encode(payload, secret, algorithm="HS256")
+
+    return Response({
+        "token": token,
+        "user": {
+            "email": user.email,
+            "name": user.display_name or user.username,
+            "role": user.role,
+            "image": user.avatar_url
+        }
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register(request):
+    """Register a new user"""
+    email = request.data.get("email")
+    password = request.data.get("password")
+    username = request.data.get("username") or email.split("@")[0]
+    role = request.data.get("role", UserRole.CUSTOMER)
+
+    if not email or not password:
+        return Response({"error": "Email and password required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if User.objects.filter(email=email).exists():
+        return Response({"error": "User with this email already exists"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=password,
+        role=role
+    )
+
+    # Generate JWT token
+    secret = getattr(settings, "NEXTAUTH_SECRET", settings.SECRET_KEY)
+    payload = {
+        "email": user.email,
+        "exp": datetime.utcnow() + timedelta(days=7),
+        "iat": datetime.utcnow()
+    }
+    token = jwt.encode(payload, secret, algorithm="HS256")
+
+    return Response({
+        "token": token,
+        "user": {
+            "email": user.email,
+            "name": user.display_name or user.username,
+            "role": user.role,
+            "image": user.avatar_url
+        }
+    }, status=status.HTTP_201_CREATED)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -76,6 +161,7 @@ def user_stats(request):
         my_services = Service.objects.filter(provider=user).count()
         my_bookings = Booking.objects.filter(service__provider=user).count()
         pending_bookings = Booking.objects.filter(service__provider=user, status=Booking.Status.PENDING).count()
+        confirmed_bookings = Booking.objects.filter(service__provider=user, status=Booking.Status.CONFIRMED).count()
         completed_bookings = Booking.objects.filter(service__provider=user, status=Booking.Status.COMPLETED).count()
         
         # Calculate average rating
@@ -90,6 +176,7 @@ def user_stats(request):
             "total_services": my_services,
             "total_bookings": my_bookings,
             "pending_bookings": pending_bookings,
+            "confirmed_bookings": confirmed_bookings,
             "completed_bookings": completed_bookings,
             "average_rating": round(avg_rating, 1),
         }
@@ -97,14 +184,15 @@ def user_stats(request):
         # Customer stats
         my_bookings = Booking.objects.filter(customer=user).count()
         pending_bookings = Booking.objects.filter(customer=user, status=Booking.Status.PENDING).count()
+        confirmed_bookings = Booking.objects.filter(customer=user, status=Booking.Status.CONFIRMED).count()
         completed_bookings = Booking.objects.filter(customer=user, status=Booking.Status.COMPLETED).count()
-        active_bookings = Booking.objects.filter(customer=user, status=Booking.Status.CONFIRMED).count()
         
         data = {
             "total_bookings": my_bookings,
             "pending_bookings": pending_bookings,
+            "confirmed_bookings": confirmed_bookings,
             "completed_bookings": completed_bookings,
-            "active_bookings": active_bookings,
+            "active_bookings": confirmed_bookings,
         }
     else:
         # Admin stats (same as public stats)

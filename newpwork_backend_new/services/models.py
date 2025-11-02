@@ -29,6 +29,8 @@ class Service(models.Model):
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
     pricing_type = models.CharField(max_length=20, choices=PricingType.choices, default=PricingType.FIXED)
     location = models.CharField(max_length=200, blank=True)
+    certificates = models.TextField(blank=True, help_text="List of certificates and degrees (comma-separated or JSON)")
+    degrees = models.TextField(blank=True, help_text="Educational degrees and qualifications")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

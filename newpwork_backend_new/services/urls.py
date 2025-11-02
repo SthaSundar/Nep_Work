@@ -7,6 +7,7 @@ from .views import (
     my_services,
     update_service,
     delete_service,
+    service_detail,
 )
 
 def services_home(request):
@@ -26,6 +27,7 @@ urlpatterns = [
     path("services/", list_services, name="list_services"),
     path("services/my/", my_services, name="my_services"),
     path("services/create/", create_service, name="create_service"),
+    path("services/<int:service_id>/detail/", service_detail, name="service_detail"),
     path("services/<int:service_id>/", update_service, name="update_service"),
     path("services/<int:service_id>/delete/", delete_service, name="delete_service"),
 ]

@@ -14,8 +14,171 @@ import {
     Plus,
     Edit,
     Trash2,
-    Eye
+    Eye,
+    CheckCircle,
+    XCircle,
+    Clock
 } from "lucide-react"
+
+function PendingKYCList() {
+    const { data: session } = useSession()
+    const [kycList, setKycList] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [processing, setProcessing] = useState(null)
+
+    useEffect(() => {
+        const loadKYC = async () => {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+                const headers = { "Content-Type": "application/json" }
+                if (token) {
+                    headers["Authorization"] = `Bearer ${token}`
+                }
+
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/kyc/pending/`, { headers })
+                if (res.ok) {
+                    const data = await res.json()
+                    setKycList(Array.isArray(data) ? data : [])
+                }
+            } catch (e) {
+                console.error("Failed to load KYC", e)
+            } finally {
+                setLoading(false)
+            }
+        }
+        if (session) loadKYC()
+    }, [session])
+
+    const handleVerify = async (kycId, action) => {
+        setProcessing(kycId)
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+            const headers = {
+                "Content-Type": "application/json",
+            }
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`
+            }
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/kyc/${kycId}/verify/`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ action, admin_notes: "" }),
+            })
+
+            if (res.ok) {
+                // Remove from list if approved/rejected
+                setKycList(prev => prev.filter(k => k.id !== kycId))
+                alert(action === "approve" ? "KYC approved successfully" : "KYC rejected")
+            } else {
+                alert("Failed to verify KYC")
+            }
+        } catch (e) {
+            console.error("Failed to verify KYC", e)
+            alert("Failed to verify KYC")
+        } finally {
+            setProcessing(null)
+        }
+    }
+
+    if (loading) {
+        return <p className="text-sm text-muted-foreground">Loading...</p>
+    }
+
+    if (kycList.length === 0) {
+        return <p className="text-sm text-muted-foreground">No pending KYC verifications.</p>
+    }
+
+    return (
+        <div className="space-y-4">
+            {kycList.map((kyc) => (
+                <Card key={kyc.id}>
+                    <CardHeader>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Clock className="w-5 h-5 text-yellow-600" />
+                                    {kyc.full_name}
+                                </CardTitle>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    {kyc.user_email} • Phone: {kyc.phone_number}
+                                </p>
+                            </div>
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">
+                                Pending
+                            </span>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            <div>
+                                <p className="text-sm font-medium">Address:</p>
+                                <p className="text-sm text-muted-foreground">{kyc.address}</p>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                {kyc.photo_url && (
+                                    <div>
+                                        <p className="text-sm font-medium mb-2">Photo:</p>
+                                        <img src={kyc.photo_url} alt="Photo" className="w-24 h-24 object-cover rounded border" />
+                                    </div>
+                                )}
+                                {kyc.citizenship_url && (
+                                    <div>
+                                        <p className="text-sm font-medium mb-2">Citizenship:</p>
+                                        <a href={kyc.citizenship_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                                            View Document
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+
+                            {kyc.driving_license_url && (
+                                <div>
+                                    <p className="text-sm font-medium mb-2">Driving License:</p>
+                                    <a href={kyc.driving_license_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                                        View Document
+                                    </a>
+                                </div>
+                            )}
+
+                            {kyc.passport_url && (
+                                <div>
+                                    <p className="text-sm font-medium mb-2">Passport:</p>
+                                    <a href={kyc.passport_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                                        View Document
+                                    </a>
+                                </div>
+                            )}
+
+                            <div className="flex gap-2 pt-2">
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleVerify(kyc.id, "approve")}
+                                    disabled={processing === kyc.id}
+                                    className="flex-1 bg-green-600 hover:bg-green-700"
+                                >
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    Approve
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleVerify(kyc.id, "reject")}
+                                    disabled={processing === kyc.id}
+                                    className="flex-1"
+                                >
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    Reject
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+    )
+}
 
 export default function AdminDashboard() {
     const { data: session, status } = useSession()
@@ -75,9 +238,10 @@ export default function AdminDashboard() {
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="users">Users</TabsTrigger>
+                        <TabsTrigger value="kyc">KYC Verification</TabsTrigger>
                         <TabsTrigger value="categories">Categories</TabsTrigger>
                         <TabsTrigger value="disputes">Disputes</TabsTrigger>
                     </TabsList>
@@ -236,6 +400,14 @@ export default function AdminDashboard() {
                                 </div>
                             </CardContent>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="kyc" className="space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-bold">KYC Verification</h2>
+                        </div>
+
+                        <PendingKYCList />
                     </TabsContent>
 
                     <TabsContent value="categories" className="space-y-6">

@@ -28,13 +28,13 @@ const steps = [
 
 export default function HowItWorks() {
     return (
-        <section className="py-16 px-4 bg-gray-950 text-white">
+        <section className="py-16 px-4 bg-blue-50 text-blue-900">
             <div className="max-w-7xl mx-auto">
                 <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                    <h2 className="text-3xl md:text-4xl font-bold mb-4 text-blue-800">
                         How NepWork Works
                     </h2>
-                    <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+                    <p className="text-xl text-blue-700 max-w-2xl mx-auto">
                         Simple steps to connect with the best service providers
                     </p>
                 </div>
@@ -43,17 +43,17 @@ export default function HowItWorks() {
                     {steps.map((step, index) => {
                         const IconComponent = step.icon
                         return (
-                            <Card key={index} className="bg-gray-800 border-gray-700 text-center">
+                            <Card key={index} className="bg-white border-blue-200 text-center hover:shadow-lg transition-shadow">
                                 <CardHeader>
                                     <div className="mx-auto w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center mb-4">
                                         <IconComponent className="w-8 h-8 text-white" />
                                     </div>
-                                    <CardTitle className="text-xl text-white">
+                                    <CardTitle className="text-xl text-blue-800">
                                         {step.title}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-gray-300">{step.description}</p>
+                                    <p className="text-blue-700">{step.description}</p>
                                 </CardContent>
                             </Card>
                         )
@@ -61,16 +61,16 @@ export default function HowItWorks() {
                 </div>
 
                 <div className="text-center mt-12">
-                    <div className="bg-gray-800 rounded-lg p-8 max-w-2xl mx-auto">
-                        <h3 className="text-2xl font-bold mb-4">Ready to Get Started?</h3>
-                        <p className="text-gray-300 mb-6">
+                    <div className="bg-white rounded-lg p-8 max-w-2xl mx-auto border border-blue-200">
+                        <h3 className="text-2xl font-bold mb-4 text-blue-800">Ready to Get Started?</h3>
+                        <p className="text-blue-700 mb-6">
                             Join thousands of satisfied customers and service providers on NepWork
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                             <a href="/auth/signin" className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors">
                                 Join as Client
                             </a>
-                            <a href="/auth/signin?role=provider" className="inline-flex items-center justify-center px-6 py-3 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 transition-colors">
+                            <a href="/auth/signin?role=provider" className="inline-flex items-center justify-center px-6 py-3 bg-blue-500 text-white font-medium rounded-md hover:bg-blue-600 transition-colors">
                                 Join as Provider
                             </a>
                         </div>

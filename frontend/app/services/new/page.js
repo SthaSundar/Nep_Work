@@ -17,6 +17,8 @@ export default function NewServicePage() {
     pricing_type: "fixed",
     location: "",
     category: "",
+    certificates: "",
+    degrees: "",
   })
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -26,6 +28,30 @@ export default function NewServicePage() {
     const role = (typeof window !== "undefined" && localStorage.getItem("npw_role")) || "customer"
     if (!session) router.replace("/auth/signin")
     else if (role !== "provider") router.replace("/dashboard?role=customer")
+    else {
+      // Check KYC status
+      const checkKYC = async () => {
+        try {
+          const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+          const headers = { "Content-Type": "application/json" }
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`
+          }
+
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/kyc/status/`, { headers })
+          if (res.ok) {
+            const data = await res.json()
+            if (data.status !== "approved") {
+              setError("KYC verification required to post services. Please complete your KYC verification first.")
+              setTimeout(() => router.push("/kyc"), 2000)
+            }
+          }
+        } catch (e) {
+          console.error("Failed to check KYC", e)
+        }
+      }
+      checkKYC()
+    }
   }, [session, status, router])
 
   const handleChange = (e) => {
@@ -38,13 +64,19 @@ export default function NewServicePage() {
     setError("")
     setLoading(true)
     try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+      const headers = {
+        "Content-Type": "application/json",
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      } else {
+        headers["X-User-Email"] = session?.user?.email || ""
+      }
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services/services/create/`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // Dev-only header to authenticate to DRF
-          "X-User-Email": session?.user?.email || "",
-        },
+        headers,
         body: JSON.stringify({
           title: form.title,
           description: form.description,
@@ -52,10 +84,17 @@ export default function NewServicePage() {
           pricing_type: form.pricing_type,
           location: form.location,
           category: Number(form.category) || null,
+          certificates: form.certificates,
+          degrees: form.degrees,
         }),
       })
+      
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
+        if (data.kyc_required) {
+          router.push("/kyc")
+          throw new Error("KYC verification required to post services. Redirecting to KYC form...")
+        }
         throw new Error(data?.detail || "Failed to create service")
       }
       router.push("/dashboard?role=provider")
@@ -104,6 +143,28 @@ export default function NewServicePage() {
                 <label className="block text-sm font-medium">Category ID</label>
                 <Input name="category" value={form.category} onChange={handleChange} placeholder="e.g. 1" />
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Certificates</label>
+              <textarea 
+                name="certificates" 
+                value={form.certificates} 
+                onChange={handleChange} 
+                className="w-full border rounded p-2" 
+                rows={3}
+                placeholder="List your certificates (e.g., AWS Certified, Google Cloud Professional, etc.)"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Degrees & Qualifications</label>
+              <textarea 
+                name="degrees" 
+                value={form.degrees} 
+                onChange={handleChange} 
+                className="w-full border rounded p-2" 
+                rows={3}
+                placeholder="List your educational degrees and qualifications (e.g., B.Sc. Computer Science, M.Sc. Engineering, etc.)"
+              />
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit" disabled={loading}>{loading ? "Creating..." : "Create Service"}</Button>

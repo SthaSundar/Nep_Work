@@ -1,53 +1,61 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Star, MapPin, Clock } from "lucide-react"
 import Link from "next/link"
 
-const featuredServices = [
-    {
-        id: 1,
-        title: "Professional Web Development",
-        provider: "TechPro Solutions",
-        description: "Custom website development with modern design and responsive layout",
-        category: "Tech Services",
-        rating: 4.8,
-        reviews: 127,
-        location: "Kathmandu",
-        price: "Rs. 25,000",
-        duration: "2-3 weeks",
-        image: "/logo.png"
-    },
-    {
-        id: 2,
-        title: "Home Cleaning Service",
-        provider: "CleanHome Pro",
-        description: "Professional home cleaning service with eco-friendly products",
-        category: "Home Services",
-        rating: 4.9,
-        reviews: 89,
-        location: "Lalitpur",
-        price: "Rs. 2,500",
-        duration: "3-4 hours",
-        image: "/logo.png"
-    },
-    {
-        id: 3,
-        title: "Professional Photography",
-        provider: "Capture Moments",
-        description: "Event photography, portraits, and commercial photography services",
-        category: "Creative Services",
-        rating: 4.7,
-        reviews: 156,
-        location: "Bhaktapur",
-        price: "Rs. 15,000",
-        duration: "1 day",
-        image: "/logo.png"
-    }
-]
-
 export default function FeaturedServices() {
+    const [services, setServices] = useState([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const loadServices = async () => {
+            try {
+                if (!process.env.NEXT_PUBLIC_API_URL) {
+                    setLoading(false)
+                    return
+                }
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services/services/?limit=3`)
+                if (res.ok) {
+                    const data = await res.json()
+                    // Sort by rating or take first 3
+                    const sorted = Array.isArray(data) 
+                        ? data.sort((a, b) => (b.average_rating || 0) - (a.average_rating || 0)).slice(0, 3)
+                        : []
+                    setServices(sorted)
+                }
+            } catch (e) {
+                console.error("Failed to load services", e)
+            } finally {
+                setLoading(false)
+            }
+        }
+        loadServices()
+    }, [])
+
+    if (loading) {
+        return (
+            <section className="py-16 px-4">
+                <div className="max-w-7xl mx-auto">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                            Featured Services
+                        </h2>
+                        <p className="text-xl text-slate-200 max-w-2xl mx-auto">
+                            Loading services...
+                        </p>
+                    </div>
+                </div>
+            </section>
+        )
+    }
+
+    if (services.length === 0) {
+        return null
+    }
+
     return (
         <section className="py-16 px-4">
             <div className="max-w-7xl mx-auto">
@@ -61,38 +69,56 @@ export default function FeaturedServices() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    {featuredServices.map((service) => (
+                    {services.map((service) => (
                         <Card key={service.id} className="hover:shadow-lg transition-all duration-300">
                             <CardHeader>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-blue-600 font-medium">{service.category}</span>
-                                    <div className="flex items-center gap-1">
-                                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                                        <span className="text-sm font-medium">{service.rating}</span>
-                                        <span className="text-sm text-white">({service.reviews})</span>
-                                    </div>
+                                    <span className="text-sm text-blue-600 font-medium">{service.category_name || "Service"}</span>
+                                    {service.average_rating && (
+                                        <div className="flex items-center gap-1">
+                                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                            <span className="text-sm font-medium">{service.average_rating}</span>
+                                            {service.total_reviews > 0 && (
+                                                <span className="text-sm text-white">({service.total_reviews})</span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                                <CardTitle className="text-xl">{service.title}</CardTitle>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    {service.title}
+                                    {service.provider_verified && (
+                                        <span className="inline-flex items-center justify-center w-5 h-5 bg-blue-600 rounded-full" title="Verified Provider">
+                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        </span>
+                                    )}
+                                </CardTitle>
                                 <CardDescription className="text-sm text-blue-600">
-                                    by {service.provider}
+                                    by {service.provider_name || service.provider_email}
+                                    {service.provider_verified && <span className="ml-1 text-blue-800 font-semibold">✓ Verified</span>}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-white mb-4">{service.description}</p>
+                                <p className="text-white mb-4">{service.description?.slice(0, 150)}...</p>
 
                                 <div className="flex items-center gap-4 text-sm text-slate-400 mb-4">
-                                    <div className="flex items-center gap-1">
-                                        <MapPin className="w-4 h-4" />
-                                        {service.location}
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <Clock className="w-4 h-4" />
-                                        {service.duration}
-                                    </div>
+                                    {service.location && (
+                                        <div className="flex items-center gap-1">
+                                            <MapPin className="w-4 h-4" />
+                                            {service.location}
+                                        </div>
+                                    )}
+                                    {service.pricing_type && (
+                                        <div className="flex items-center gap-1">
+                                            <Clock className="w-4 h-4" />
+                                            {service.pricing_type}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-between mb-4">
-                                    <span className="text-2xl font-bold text-blue-600">{service.price}</span>
+                                    <span className="text-2xl font-bold text-blue-600">Rs. {service.base_price}</span>
                                 </div>
 
                                 <Button asChild className="w-full">

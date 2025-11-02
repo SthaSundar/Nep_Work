@@ -1,0 +1,487 @@
+"use client"
+
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Loader2, Upload, CheckCircle, Clock, XCircle, AlertCircle } from "lucide-react"
+import Image from "next/image"
+
+export default function KYCPage() {
+    const { data: session, status } = useSession()
+    const router = useRouter()
+    const [loading, setLoading] = useState(false)
+    const [checkingStatus, setCheckingStatus] = useState(true)
+    const [kycStatus, setKycStatus] = useState(null)
+    const [error, setError] = useState("")
+    const [success, setSuccess] = useState("")
+    
+    const [formData, setFormData] = useState({
+        photo: null,
+        full_name: "",
+        address: "",
+        phone_number: "",
+        citizenship: null,
+        driving_license: null,
+        passport: null,
+    })
+    
+    const [previews, setPreviews] = useState({
+        photo: null,
+        citizenship: null,
+        driving_license: null,
+        passport: null,
+    })
+
+    useEffect(() => {
+        if (status === "loading") return
+        if (!session) {
+            router.push("/auth/signin")
+            return
+        }
+        
+        // Check KYC status
+        const checkStatus = async () => {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+                const headers = {
+                    "Content-Type": "application/json",
+                }
+                if (token) {
+                    headers["Authorization"] = `Bearer ${token}`
+                }
+
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/kyc/status/`, {
+                    headers
+                })
+                
+                if (res.ok) {
+                    const data = await res.json()
+                    setKycStatus(data)
+                    if (data.status === "approved") {
+                        setSuccess("Your KYC is verified! You can now post services.")
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to check KYC status", e)
+            } finally {
+                setCheckingStatus(false)
+            }
+        }
+        checkStatus()
+    }, [session, status, router])
+
+    const handleFileChange = (field, file) => {
+        if (file) {
+            setFormData(prev => ({ ...prev, [field]: file }))
+            
+            // Create preview for images
+            if (field === "photo" && file.type.startsWith("image/")) {
+                const reader = new FileReader()
+                reader.onload = (e) => {
+                    setPreviews(prev => ({ ...prev, [field]: e.target.result }))
+                }
+                reader.readAsDataURL(file)
+            } else {
+                setPreviews(prev => ({ ...prev, [field]: file.name }))
+            }
+        }
+    }
+
+    const handleSubmit = async (e) => {
+        e.preventDefault()
+        setLoading(true)
+        setError("")
+        setSuccess("")
+
+        // Validate mandatory fields
+        if (!formData.photo) {
+            setError("Photo is required")
+            setLoading(false)
+            return
+        }
+        if (!formData.full_name.trim()) {
+            setError("Full name is required")
+            setLoading(false)
+            return
+        }
+        if (!formData.address.trim()) {
+            setError("Address is required")
+            setLoading(false)
+            return
+        }
+        if (!formData.phone_number.trim()) {
+            setError("Phone number is required")
+            setLoading(false)
+            return
+        }
+        if (!formData.citizenship) {
+            setError("Citizenship document is required")
+            setLoading(false)
+            return
+        }
+
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+            const headers = {}
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`
+            }
+
+            const formDataToSend = new FormData()
+            formDataToSend.append("photo", formData.photo)
+            formDataToSend.append("full_name", formData.full_name)
+            formDataToSend.append("address", formData.address)
+            formDataToSend.append("phone_number", formData.phone_number)
+            formDataToSend.append("citizenship", formData.citizenship)
+            
+            if (formData.driving_license) {
+                formDataToSend.append("driving_license", formData.driving_license)
+            }
+            if (formData.passport) {
+                formDataToSend.append("passport", formData.passport)
+            }
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/kyc/submit/`, {
+                method: "POST",
+                headers,
+                body: formDataToSend,
+            })
+
+            const data = await res.json()
+
+            if (!res.ok) {
+                throw new Error(data.error || data.detail || "Failed to submit KYC")
+            }
+
+            setSuccess("KYC form submitted successfully! Your form is being processed. It will take some time to verify.")
+            setKycStatus(data.kyc || { status: "pending" })
+            
+            // Clear form
+            setFormData({
+                photo: null,
+                full_name: "",
+                address: "",
+                phone_number: "",
+                citizenship: null,
+                driving_license: null,
+                passport: null,
+            })
+            setPreviews({
+                photo: null,
+                citizenship: null,
+                driving_license: null,
+                passport: null,
+            })
+        } catch (err) {
+            setError(err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    if (status === "loading" || checkingStatus) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+        )
+    }
+
+    if (!session) {
+        return null
+    }
+
+    // Show status if already submitted
+    if (kycStatus && kycStatus.status !== "not_submitted") {
+        const statusConfig = {
+            pending: {
+                icon: Clock,
+                color: "text-yellow-600",
+                bgColor: "bg-yellow-50",
+                borderColor: "border-yellow-200",
+                message: "Your KYC form is being processed. It will take some time to verify."
+            },
+            approved: {
+                icon: CheckCircle,
+                color: "text-green-600",
+                bgColor: "bg-green-50",
+                borderColor: "border-green-200",
+                message: "Your KYC is verified! You can now post services."
+            },
+            rejected: {
+                icon: XCircle,
+                color: "text-red-600",
+                bgColor: "bg-red-50",
+                borderColor: "border-red-200",
+                message: "Your KYC was rejected. Please check admin notes and resubmit."
+            }
+        }
+
+        const config = statusConfig[kycStatus.status] || statusConfig.pending
+        const StatusIcon = config.icon
+
+        return (
+            <div className="min-h-screen bg-white py-8">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <Card className={`border-2 ${config.borderColor}`}>
+                        <CardHeader className="text-center">
+                            <div className="mx-auto mb-4">
+                                <StatusIcon className={`w-16 h-16 ${config.color}`} />
+                            </div>
+                            <CardTitle className={`text-2xl ${config.color}`}>
+                                KYC Status: {kycStatus.status?.toUpperCase()}
+                            </CardTitle>
+                            <CardDescription className="mt-2">
+                                {config.message}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {kycStatus.admin_notes && (
+                                <div className={`p-4 rounded-lg ${config.bgColor}`}>
+                                    <h3 className="font-semibold mb-2">Admin Notes:</h3>
+                                    <p className="text-sm">{kycStatus.admin_notes}</p>
+                                </div>
+                            )}
+                            {kycStatus.status === "approved" && (
+                                <Button onClick={() => router.push("/dashboard")} className="w-full">
+                                    Go to Dashboard
+                                </Button>
+                            )}
+                            {kycStatus.status === "rejected" && (
+                                <Button onClick={() => setKycStatus({ status: "not_submitted" })} className="w-full">
+                                    Resubmit KYC
+                                </Button>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="min-h-screen bg-white py-8">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-2xl text-blue-800">KYC Verification Form</CardTitle>
+                        <CardDescription className="text-blue-700">
+                            Complete your KYC verification to post services. All fields marked with * are mandatory.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {error && (
+                            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                                {error}
+                            </div>
+                        )}
+                        {success && (
+                            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-sm">
+                                {success}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Photo */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-2">
+                                    Photo * <span className="text-red-500">(Required)</span>
+                                </label>
+                                <div className="flex items-center gap-4">
+                                    <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer hover:bg-blue-50">
+                                        {previews.photo ? (
+                                            <Image
+                                                src={previews.photo}
+                                                alt="Preview"
+                                                width={128}
+                                                height={128}
+                                                className="w-full h-full object-cover rounded-lg"
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                                <Upload className="w-8 h-8 mb-2 text-blue-500" />
+                                                <p className="text-xs text-blue-600">Click to upload</p>
+                                            </div>
+                                        )}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => handleFileChange("photo", e.target.files[0])}
+                                            required
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Full Name */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-1">
+                                    Full Name * <span className="text-red-500">(Required)</span>
+                                </label>
+                                <Input
+                                    type="text"
+                                    value={formData.full_name}
+                                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                                    placeholder="Enter your full name"
+                                    required
+                                />
+                            </div>
+
+                            {/* Address */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-1">
+                                    Address * <span className="text-red-500">(Required)</span>
+                                </label>
+                                <textarea
+                                    value={formData.address}
+                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                    placeholder="Enter your complete address"
+                                    className="w-full border rounded-md p-2 min-h-[100px]"
+                                    required
+                                />
+                            </div>
+
+                            {/* Phone Number */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-1">
+                                    Phone Number * <span className="text-red-500">(Required)</span>
+                                </label>
+                                <Input
+                                    type="tel"
+                                    value={formData.phone_number}
+                                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                                    placeholder="Enter your phone number"
+                                    required
+                                />
+                            </div>
+
+                            {/* Email (read-only from account) */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-1">
+                                    Email
+                                </label>
+                                <Input
+                                    type="email"
+                                    value={session.user?.email || ""}
+                                    disabled
+                                    className="bg-gray-100"
+                                />
+                                <p className="text-xs text-blue-600 mt-1">Email is taken from your account</p>
+                            </div>
+
+                            {/* Citizenship */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-2">
+                                    Citizenship Document * <span className="text-red-500">(Very Mandatory)</span>
+                                </label>
+                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer hover:bg-blue-50">
+                                    {previews.citizenship ? (
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
+                                            <p className="text-sm text-blue-600">{previews.citizenship}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <Upload className="w-8 h-8 mb-2 text-blue-500" />
+                                            <p className="text-sm text-blue-600">Click to upload citizenship</p>
+                                        </div>
+                                    )}
+                                    <input
+                                        type="file"
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        className="hidden"
+                                        onChange={(e) => handleFileChange("citizenship", e.target.files[0])}
+                                        required
+                                    />
+                                </label>
+                            </div>
+
+                            {/* Driving License (Optional) */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-2">
+                                    Driving License (Optional)
+                                </label>
+                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer hover:bg-blue-50">
+                                    {previews.driving_license ? (
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
+                                            <p className="text-sm text-blue-600">{previews.driving_license}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <Upload className="w-8 h-8 mb-2 text-blue-500" />
+                                            <p className="text-sm text-blue-600">Click to upload driving license</p>
+                                        </div>
+                                    )}
+                                    <input
+                                        type="file"
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        className="hidden"
+                                        onChange={(e) => handleFileChange("driving_license", e.target.files[0])}
+                                    />
+                                </label>
+                            </div>
+
+                            {/* Passport (Optional) */}
+                            <div>
+                                <label className="block text-sm font-medium text-blue-800 mb-2">
+                                    Passport (Optional)
+                                </label>
+                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer hover:bg-blue-50">
+                                    {previews.passport ? (
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
+                                            <p className="text-sm text-blue-600">{previews.passport}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <Upload className="w-8 h-8 mb-2 text-blue-500" />
+                                            <p className="text-sm text-blue-600">Click to upload passport</p>
+                                        </div>
+                                    )}
+                                    <input
+                                        type="file"
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        className="hidden"
+                                        onChange={(e) => handleFileChange("passport", e.target.files[0])}
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <Button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="flex-1"
+                                    size="lg"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Submitting...
+                                        </>
+                                    ) : (
+                                        "Submit KYC Form"
+                                    )}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => router.push("/dashboard")}
+                                    disabled={loading}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    )
+}
+

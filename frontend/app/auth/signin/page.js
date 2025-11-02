@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
 
@@ -12,7 +13,17 @@ export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const role = searchParams.get("role") || "client"
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
+  const [error, setError] = useState("")
+  const [isLogin, setIsLogin] = useState(true)
+  const roleParam = searchParams.get("role") || "client"
+  // Map "client" to "customer" for backend, and "provider" stays the same
+  const role = roleParam === "client" ? "customer" : roleParam
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    username: ""
+  })
 
   useEffect(() => {
     const checkSession = async () => {
@@ -25,9 +36,9 @@ export default function SignInPage() {
   }, [router])
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true)
+    setIsLoadingGoogle(true)
+    setError("")
     try {
-      // Remember selected role locally for post-login use
       if (typeof window !== "undefined") {
         localStorage.setItem("npw_role", role)
       }
@@ -36,6 +47,68 @@ export default function SignInPage() {
       })
     } catch (error) {
       console.error("Sign in error:", error)
+      setError("Failed to sign in with Google")
+      setIsLoadingGoogle(false)
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const url = isLogin 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/accounts/login/`
+        : `${process.env.NEXT_PUBLIC_API_URL}/accounts/register/`
+      
+      const body = isLogin
+        ? { email: formData.email, password: formData.password }
+        : { email: formData.email, password: formData.password, username: formData.username, role }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || "Authentication failed")
+      }
+
+      // Store token and sync with NextAuth
+      if (typeof window !== "undefined") {
+        localStorage.setItem("npw_token", data.token)
+        localStorage.setItem("npw_role", data.user.role || role)
+      }
+
+      // User is already registered/logged in through our backend API
+      // The data.user contains all the user info we need
+      // Sync with NextAuth for session management
+      try {
+        const syncRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: data.user.email,
+            username: data.user.name || formData.username,
+            role: data.user.role || role
+          }),
+        })
+        if (!syncRes.ok) {
+          console.warn("Sync failed but continuing:", await syncRes.text())
+        }
+      } catch (syncError) {
+        console.warn("Sync error (non-critical):", syncError)
+      }
+
+      // Force reload the page to create NextAuth session
+      // This ensures the session is properly established
+      window.location.href = `/dashboard?role=${data.user.role || role}`
+    } catch (err) {
+      setError(err.message)
       setIsLoading(false)
     }
   }
@@ -54,7 +127,7 @@ export default function SignInPage() {
           <h2 className="text-3xl font-bold text-gray-900">
             Welcome to NepWork
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-blue-700">
             {role === "provider" 
               ? "Join as a service provider and showcase your skills"
               : "Find the best service providers for your needs"
@@ -65,7 +138,7 @@ export default function SignInPage() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-xl">
-              Sign in to continue
+              {isLogin ? "Sign in" : "Create account"}
             </CardTitle>
             <CardDescription>
               {role === "provider" 
@@ -74,14 +147,90 @@ export default function SignInPage() {
               }
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Username
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    required={!isLogin}
+                  />
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <Input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
+                </label>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full"
+                size="lg"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isLogin ? "Signing in..." : "Creating account..."}
+                  </>
+                ) : (
+                  isLogin ? "Sign In" : "Create Account"
+                )}
+              </Button>
+            </form>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
             <Button
               onClick={handleGoogleSignIn}
-              disabled={isLoading}
+              disabled={isLoadingGoogle || isLoading}
+              variant="outline"
               className="w-full"
               size="lg"
             >
-              {isLoading ? (
+              {isLoadingGoogle ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Signing in...
@@ -111,12 +260,28 @@ export default function SignInPage() {
               )}
             </Button>
 
+            <div className="text-center text-sm">
+              <button
+                onClick={() => {
+                  setIsLogin(!isLogin)
+                  setError("")
+                  setFormData({ email: "", password: "", username: "" })
+                }}
+                className="text-blue-600 hover:underline"
+              >
+                {isLogin 
+                  ? "Don't have an account? Sign up" 
+                  : "Already have an account? Sign in"}
+              </button>
+            </div>
+
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
+              <p className="text-xs text-gray-600">
                 By signing in, you agree to our{" "}
                 <a href="/terms" className="text-blue-600 hover:underline">
                   Terms of Service
-                </a>{" "}
+                </a>
+                {" "}
                 and{" "}
                 <a href="/privacy" className="text-blue-600 hover:underline">
                   Privacy Policy

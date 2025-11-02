@@ -1,135 +1,89 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Star, MapPin, Clock, Filter, Search } from "lucide-react"
 import Link from "next/link"
 
-const mockServices = [
-  {
-    id: 1,
-    title: "Professional Web Development",
-    provider: "TechPro Solutions",
-    description: "Custom website development with modern design and responsive layout",
-    category: "Tech Services",
-    rating: 4.8,
-    reviews: 127,
-    location: "Kathmandu",
-    price: "Rs. 25,000",
-    duration: "2-3 weeks",
-    image: "/logo.png"
-  },
-  {
-    id: 2,
-    title: "Home Cleaning Service",
-    provider: "CleanHome Pro",
-    description: "Professional home cleaning service with eco-friendly products",
-    category: "Home Services",
-    rating: 4.9,
-    reviews: 89,
-    location: "Lalitpur",
-    price: "Rs. 2,500",
-    duration: "3-4 hours",
-    image: "/logo.png"
-  },
-  {
-    id: 3,
-    title: "Professional Photography",
-    provider: "Capture Moments",
-    description: "Event photography, portraits, and commercial photography services",
-    category: "Creative Services",
-    rating: 4.7,
-    reviews: 156,
-    location: "Bhaktapur",
-    price: "Rs. 15,000",
-    duration: "1 day",
-    image: "/logo.png"
-  },
-  {
-    id: 4,
-    title: "Car Maintenance & Repair",
-    provider: "AutoCare Plus",
-    description: "Complete automotive service including oil change, brake repair, and diagnostics",
-    category: "Automotive",
-    rating: 4.6,
-    reviews: 203,
-    location: "Kathmandu",
-    price: "Rs. 5,000",
-    duration: "2-4 hours",
-    image: "/logo.png"
-  },
-  {
-    id: 5,
-    title: "Hair Styling & Makeup",
-    provider: "Beauty Studio",
-    description: "Professional hair styling, makeup, and beauty services for all occasions",
-    category: "Beauty & Wellness",
-    rating: 4.9,
-    reviews: 98,
-    location: "Lalitpur",
-    price: "Rs. 3,500",
-    duration: "2-3 hours",
-    image: "/logo.png"
-  },
-  {
-    id: 6,
-    title: "Legal Consultation",
-    provider: "Legal Experts Nepal",
-    description: "Professional legal advice and consultation for various legal matters",
-    category: "Professional Services",
-    rating: 4.8,
-    reviews: 67,
-    location: "Kathmandu",
-    price: "Rs. 8,000",
-    duration: "1-2 hours",
-    image: "/logo.png"
-  }
-]
-
-const categories = [
-  "All",
-  "Tech Services",
-  "Home Services", 
-  "Creative Services",
-  "Automotive",
-  "Beauty & Wellness",
-  "Professional Services"
-]
-
 export default function ServicesPage() {
+  const [services, setServices] = useState([])
+  const [categories, setCategories] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [sortBy, setSortBy] = useState("rating")
+  const [loading, setLoading] = useState(true)
 
-  const filteredServices = mockServices.filter(service => {
-    const matchesSearch = service.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.provider.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = selectedCategory === "All" || service.category === selectedCategory
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        if (!process.env.NEXT_PUBLIC_API_URL) {
+          setLoading(false)
+          return
+        }
+
+        // Load services
+        const servicesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services/services/`)
+        if (servicesRes.ok) {
+          const servicesData = await servicesRes.json()
+          setServices(Array.isArray(servicesData) ? servicesData : [])
+        }
+
+        // Load categories
+        const categoriesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services/categories/`)
+        if (categoriesRes.ok) {
+          const categoriesData = await categoriesRes.json()
+          setCategories(Array.isArray(categoriesData) ? categoriesData : [])
+        }
+      } catch (e) {
+        console.error("Failed to load data", e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  const filteredServices = services.filter(service => {
+    const matchesSearch = service.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         service.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         service.provider_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = selectedCategory === "All" || 
+                           service.category_name === selectedCategory ||
+                           service.category?.name === selectedCategory
     return matchesSearch && matchesCategory
   })
 
   const sortedServices = [...filteredServices].sort((a, b) => {
     switch (sortBy) {
       case "rating":
-        return b.rating - a.rating
+        return (b.average_rating || 0) - (a.average_rating || 0)
       case "price-low":
-        return parseInt(a.price.replace(/\D/g, "")) - parseInt(b.price.replace(/\D/g, ""))
+        return parseFloat(a.base_price || 0) - parseFloat(b.base_price || 0)
       case "price-high":
-        return parseInt(b.price.replace(/\D/g, "")) - parseInt(a.price.replace(/\D/g, ""))
+        return parseFloat(b.base_price || 0) - parseFloat(a.base_price || 0)
       case "reviews":
-        return b.reviews - a.reviews
+        return (b.total_reviews || 0) - (a.total_reviews || 0)
       default:
         return 0
     }
   })
 
+  const categoryList = ["All", ...categories.map(cat => cat.name)]
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white shadow-sm border-b border-blue-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Browse Services</h1>
           <p className="text-lg text-gray-600">
@@ -148,7 +102,7 @@ export default function ServicesPage() {
                 placeholder="Search services, providers, or categories..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-white  border-gray-300"
+                className="pl-10 bg-white border-gray-300"
               />
             </div>
             <select
@@ -156,7 +110,7 @@ export default function ServicesPage() {
               onChange={(e) => setSortBy(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
             >
-              <option value="rating" >Sort by Rating</option>
+              <option value="rating">Sort by Rating</option>
               <option value="price-low">Price: Low to High</option>
               <option value="price-high">Price: High to Low</option>
               <option value="reviews">Most Reviews</option>
@@ -165,7 +119,7 @@ export default function ServicesPage() {
 
           {/* Category Filters */}
           <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
+            {categoryList.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
@@ -187,34 +141,52 @@ export default function ServicesPage() {
             <Card key={service.id} className="hover:shadow-lg transition-all duration-300">
               <CardHeader>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-blue-600 font-medium">{service.category}</span>
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm font-medium">{service.rating}</span>
-                    <span className="text-sm text-gray-500">({service.reviews})</span>
-                  </div>
+                  <span className="text-sm text-blue-600 font-medium">{service.category_name || "Service"}</span>
+                  {service.average_rating && (
+                    <div className="flex items-center gap-1">
+                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                      <span className="text-sm font-medium">{service.average_rating}</span>
+                      {service.total_reviews > 0 && (
+                        <span className="text-sm text-gray-500">({service.total_reviews})</span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <CardTitle className="text-xl">{service.title}</CardTitle>
-                <CardDescription className="text-sm text-gray-600">
-                  by {service.provider}
+                <CardTitle className="text-xl flex items-center gap-2">
+                  {service.title}
+                  {service.provider_verified && (
+                    <span className="inline-flex items-center justify-center w-5 h-5 bg-blue-600 rounded-full" title="Verified Provider">
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  )}
+                </CardTitle>
+                <CardDescription className="text-sm text-blue-700">
+                  by {service.provider_name || service.provider_email}
+                  {service.provider_verified && <span className="ml-1 text-blue-800 font-semibold">✓ Verified</span>}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-700 mb-4 line-clamp-3">{service.description}</p>
                 
                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    {service.location}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    {service.duration}
-                  </div>
+                  {service.location && (
+                    <div className="flex items-center gap-1">
+                      <MapPin className="w-4 h-4" />
+                      {service.location}
+                    </div>
+                  )}
+                  {service.pricing_type && (
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {service.pricing_type}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-2xl font-bold text-blue-600">{service.price}</span>
+                  <span className="text-2xl font-bold text-blue-600">Rs. {service.base_price}</span>
                 </div>
                 
                 <div className="flex gap-2">
@@ -222,9 +194,6 @@ export default function ServicesPage() {
                     <Link href={`/services/${service.id}`}>
                       View Details
                     </Link>
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Book Now
                   </Button>
                 </div>
               </CardContent>

@@ -129,10 +129,10 @@ export default function Navigation() {
                             </DropdownMenu>
                         ) : (
                             <div className="flex items-center space-x-3">
-                                <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+                                <Button asChild variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
                                     <Link href="/auth/signin">Sign In</Link>
                                 </Button>
-                                <Button asChild className="bg-green-500 text-white hover:bg-green-600">
+                                <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
                                     <Link href="/auth/signin">Get Started</Link>
                                 </Button>
                             </div>

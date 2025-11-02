@@ -10,9 +10,9 @@ const handler = NextAuth({
   ],
   callbacks: {
     // Called whenever a user signs in
-    async signIn({ user }) {
+    async signIn({ user, account }) {
       try {
-        // Make sure your Django endpoint matches this path
+        // Sync user with backend (role will be set from backend or default to customer)
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
           method: "POST",
           headers: {
