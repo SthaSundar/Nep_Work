@@ -15,7 +15,15 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
   const [isLogin, setIsLogin] = useState(true)
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false
+  })
   const roleParam = searchParams.get("role") || "client"
   // Map "client" to "customer" for backend, and "provider" stays the same
   const role = roleParam === "client" ? "customer" : roleParam
@@ -52,10 +60,52 @@ export default function SignInPage() {
     }
   }
 
+  const validatePassword = (password) => {
+    const validation = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)
+    }
+    setPasswordValidation(validation)
+    return Object.values(validation).every(v => v === true)
+  }
+
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const handlePasswordChange = (e) => {
+    const newPassword = e.target.value
+    setFormData({ ...formData, password: newPassword })
+    if (!isLogin && newPassword.length > 0) {
+      validatePassword(newPassword)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+    setSuccess("")
+
+    // Validate email
+    if (!validateEmail(formData.email)) {
+      setError("Please enter a valid email address")
+      setIsLoading(false)
+      return
+    }
+
+    // Validate password for signup
+    if (!isLogin) {
+      if (!validatePassword(formData.password)) {
+        setError("Password does not meet requirements. Please check all criteria.")
+        setIsLoading(false)
+        return
+      }
+    }
 
     try {
       const url = isLogin 
@@ -78,15 +128,35 @@ export default function SignInPage() {
         throw new Error(data.error || "Authentication failed")
       }
 
-      // Store token and sync with NextAuth
-      if (typeof window !== "undefined") {
-        localStorage.setItem("npw_token", data.token)
-        localStorage.setItem("npw_role", data.user.role || role)
+      // If signup, show success and redirect to sign-in
+      if (!isLogin) {
+        setSuccess(data.message || "Account created successfully! Redirecting to sign in...")
+        setIsLoading(false)
+        setTimeout(() => {
+          setIsLogin(true)
+          setFormData({ email: formData.email, password: "", username: "" })
+          setSuccess("")
+          setPasswordValidation({
+            length: false,
+            uppercase: false,
+            lowercase: false,
+            number: false,
+            special: false
+          })
+        }, 2000)
+        return
       }
 
-      // User is already registered/logged in through our backend API
-      // The data.user contains all the user info we need
-      // Sync with NextAuth for session management
+      // Get the actual user role from backend response
+      const actualRole = data.user.role || role
+      
+      // For login, store token and proceed to dashboard
+      if (typeof window !== "undefined") {
+        localStorage.setItem("npw_token", data.token)
+        localStorage.setItem("npw_role", actualRole)
+      }
+
+      // Sync with NextAuth for session management with actual role from backend
       try {
         const syncRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
           method: "POST",
@@ -94,7 +164,7 @@ export default function SignInPage() {
           body: JSON.stringify({
             email: data.user.email,
             username: data.user.name || formData.username,
-            role: data.user.role || role
+            role: actualRole // Use actual role from backend
           }),
         })
         if (!syncRes.ok) {
@@ -104,9 +174,10 @@ export default function SignInPage() {
         console.warn("Sync error (non-critical):", syncError)
       }
 
-      // Force reload the page to create NextAuth session
-      // This ensures the session is properly established
-      window.location.href = `/dashboard?role=${data.user.role || role}`
+      // Redirect to dashboard with actual role from backend
+      // Map "customer" to display as "client" in URL if needed
+      const redirectRole = actualRole === "customer" ? "client" : actualRole
+      window.location.href = `/dashboard?role=${redirectRole}`
     } catch (err) {
       setError(err.message)
       setIsLoading(false)
@@ -153,6 +224,11 @@ export default function SignInPage() {
                 {error}
               </div>
             )}
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-sm">
+                {success}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
@@ -186,15 +262,37 @@ export default function SignInPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Password
+                  {!isLogin && (
+                    <span className="text-xs text-gray-500 ml-1">(8+ chars, uppercase, lowercase, number, special char)</span>
+                  )}
                 </label>
                 <Input
                   type="password"
                   placeholder="••••••••"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={handlePasswordChange}
                   required
-                  minLength={6}
+                  minLength={isLogin ? 6 : 8}
                 />
+                {!isLogin && formData.password && (
+                  <div className="mt-2 text-xs space-y-1">
+                    <div className={passwordValidation.length ? "text-green-600" : "text-gray-500"}>
+                      {passwordValidation.length ? "✓" : "○"} At least 8 characters
+                    </div>
+                    <div className={passwordValidation.uppercase ? "text-green-600" : "text-gray-500"}>
+                      {passwordValidation.uppercase ? "✓" : "○"} One uppercase letter
+                    </div>
+                    <div className={passwordValidation.lowercase ? "text-green-600" : "text-gray-500"}>
+                      {passwordValidation.lowercase ? "✓" : "○"} One lowercase letter
+                    </div>
+                    <div className={passwordValidation.number ? "text-green-600" : "text-gray-500"}>
+                      {passwordValidation.number ? "✓" : "○"} One number
+                    </div>
+                    <div className={passwordValidation.special ? "text-green-600" : "text-gray-500"}>
+                      {passwordValidation.special ? "✓" : "○"} One special character
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Button
@@ -265,7 +363,15 @@ export default function SignInPage() {
                 onClick={() => {
                   setIsLogin(!isLogin)
                   setError("")
+                  setSuccess("")
                   setFormData({ email: "", password: "", username: "" })
+                  setPasswordValidation({
+                    length: false,
+                    uppercase: false,
+                    lowercase: false,
+                    number: false,
+                    special: false
+                  })
                 }}
                 className="text-blue-600 hover:underline"
               >

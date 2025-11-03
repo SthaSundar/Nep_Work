@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'accounts',
     'bookings', 
     'services',
+    'clients',
     "corsheaders",
     'django.contrib.sites',
     'allauth',

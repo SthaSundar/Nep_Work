@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
-from services.models import ServiceCategory, Service
+from services.category_models import ServiceCategory
+from services.service_models import Service
 from accounts.models import User, UserRole
 
 

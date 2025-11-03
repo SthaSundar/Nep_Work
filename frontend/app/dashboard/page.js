@@ -37,43 +37,65 @@ export default function DashboardPage() {
       router.push("/auth/signin");
       return;
     }
-    // Only sync role once when session is established, not on every render
-    const persistRole = async () => {
+    
+    // Get user's actual role from backend
+    const fetchUserRole = async () => {
       try {
-        const selected =
-          roleFromUrl ||
-          (typeof window !== "undefined"
-            ? localStorage.getItem("npw_role")
-            : null) ||
-          "customer";
-        if (typeof window !== "undefined") {
-          localStorage.setItem("npw_role", selected);
+        const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null;
+        if (!token || !process.env.NEXT_PUBLIC_API_URL || !session?.user?.email) {
+          return;
         }
 
-        // Only sync if we have API URL and session email, and avoid duplicate calls
-        if (process.env.NEXT_PUBLIC_API_URL && session?.user?.email) {
-          const syncRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: session.user.email,
-              username: session.user.name,
-              role: selected,
-            }),
-          });
-          if (!syncRes.ok) {
-            console.warn("Role sync failed:", await syncRes.text());
+        // Fetch user data from backend to get actual role
+        const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/user-stats/`, {
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        if (userRes.ok) {
+          // Role is determined from backend user data
+          // Use role from URL, localStorage, or session, but prioritize backend verification
+          const roleFromStorage = roleFromUrl || 
+            (typeof window !== "undefined" ? localStorage.getItem("npw_role") : null) ||
+            session?.role ||
+            "customer";
+          
+          // Normalize role: "client" -> "customer" for backend
+          const normalizedRole = roleFromStorage === "client" ? "customer" : roleFromStorage;
+          
+          if (typeof window !== "undefined") {
+            localStorage.setItem("npw_role", normalizedRole);
+          }
+
+          // Sync role with backend
+          try {
+            const syncRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts/sync/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: session.user.email,
+                username: session.user.name,
+                role: normalizedRole,
+              }),
+            });
+            if (!syncRes.ok) {
+              console.warn("Role sync failed:", await syncRes.text());
+            }
+          } catch (syncError) {
+            console.warn("Sync error:", syncError);
           }
         }
       } catch (e) {
-        console.error("Failed persisting role", e);
+        console.error("Failed to fetch user role:", e);
       }
     };
-    // Only run once when session is available
+    
     if (session?.user?.email) {
-      persistRole();
+      fetchUserRole();
     }
-  }, [session?.user?.email]); // Only depend on email to prevent multiple calls
+  }, [session?.user?.email, roleFromUrl, router, status]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -146,10 +168,15 @@ export default function DashboardPage() {
     signOut({ callbackUrl: "/" });
   };
 
-  const currentRole =
-    roleFromUrl ||
-    (typeof window !== "undefined" && localStorage.getItem("npw_role")) ||
+  // Get role with proper normalization: URL param > localStorage > session > default
+  const rawRole = roleFromUrl || 
+    (typeof window !== "undefined" ? localStorage.getItem("npw_role") : null) ||
+    session?.role ||
     "customer";
+  
+  // Normalize "client" to "customer" for backend compatibility
+  // But keep "client" for display if it's "customer" in backend
+  const currentRole = rawRole === "client" ? "customer" : rawRole;
 
   return (
     <div className="min-h-screen bg-white">

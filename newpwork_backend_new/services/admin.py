@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import ServiceCategory, Service
+from .category_models import ServiceCategory
+from .service_models import Service
 
 
 @admin.register(ServiceCategory)
