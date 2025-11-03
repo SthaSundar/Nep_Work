@@ -37,7 +37,8 @@ export default function KYCPage() {
 
     useEffect(() => {
         if (status === "loading") return
-        if (!session) {
+        const hasLocalToken = typeof window !== "undefined" && !!localStorage.getItem("npw_token")
+        if (!session && !hasLocalToken) {
             router.push("/auth/signin")
             return
         }
@@ -190,7 +191,7 @@ export default function KYCPage() {
         )
     }
 
-    if (!session) {
+    if (!session && !(typeof window !== "undefined" && localStorage.getItem("npw_token"))) {
         return null
     }
 
@@ -268,9 +269,9 @@ export default function KYCPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-2xl text-blue-800">KYC Verification Form</CardTitle>
-                        <CardDescription className="text-blue-700">
-                            Complete your KYC verification to post services. All fields marked with * are mandatory.
-                        </CardDescription>
+                            <CardDescription className="text-blue-700">
+                                Complete your KYC verification to post services. Fields marked with * are mandatory.
+                            </CardDescription>
                     </CardHeader>
                     <CardContent>
                         {error && (
@@ -288,7 +289,7 @@ export default function KYCPage() {
                             {/* Photo */}
                             <div>
                                 <label className="block text-sm font-medium text-blue-800 mb-2">
-                                    Photo * <span className="text-red-500">(Required)</span>
+                                    Photo <span className="text-red-500">*</span>
                                 </label>
                                 <div className="flex items-center gap-4">
                                     <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer hover:bg-blue-50">
@@ -320,7 +321,7 @@ export default function KYCPage() {
                             {/* Full Name */}
                             <div>
                                 <label className="block text-sm font-medium text-blue-800 mb-1">
-                                    Full Name * <span className="text-red-500">(Required)</span>
+                                    Full Name <span className="text-red-500">*</span>
                                 </label>
                                 <Input
                                     type="text"
@@ -334,7 +335,7 @@ export default function KYCPage() {
                             {/* Address */}
                             <div>
                                 <label className="block text-sm font-medium text-blue-800 mb-1">
-                                    Address * <span className="text-red-500">(Required)</span>
+                                    Address <span className="text-red-500">*</span>
                                 </label>
                                 <textarea
                                     value={formData.address}
@@ -348,7 +349,7 @@ export default function KYCPage() {
                             {/* Phone Number */}
                             <div>
                                 <label className="block text-sm font-medium text-blue-800 mb-1">
-                                    Phone Number * <span className="text-red-500">(Required)</span>
+                                    Phone Number <span className="text-red-500">*</span>
                                 </label>
                                 <Input
                                     type="tel"
@@ -376,7 +377,7 @@ export default function KYCPage() {
                             {/* Citizenship */}
                             <div>
                                 <label className="block text-sm font-medium text-blue-800 mb-2">
-                                    Citizenship Document * <span className="text-red-500">(Very Mandatory)</span>
+                                    Citizenship Document <span className="text-red-500">*</span>
                                 </label>
                                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer hover:bg-blue-50">
                                     {previews.citizenship ? (

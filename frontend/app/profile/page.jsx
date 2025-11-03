@@ -10,11 +10,12 @@ import { User, Shield, Bell, CreditCard, Settings } from "lucide-react"
 
 export default function ProfilePage() {
     const { data: session } = useSession()
+    const hasLocal = typeof window !== "undefined" && !!localStorage.getItem("npw_token")
     const [activeTab, setActiveTab] = useState("profile")
     const [profileData, setProfileData] = useState({
-        firstName: session?.user?.name?.split(" ")[0] || "",
-        lastName: session?.user?.name?.split(" ").slice(1).join(" ") || "",
-        email: session?.user?.email || "",
+        firstName: (session?.user?.name || (typeof window !== "undefined" ? localStorage.getItem("npw_user_name") : ""))?.split(" ")[0] || "",
+        lastName: (session?.user?.name || (typeof window !== "undefined" ? localStorage.getItem("npw_user_name") : ""))?.split(" ").slice(1).join(" ") || "",
+        email: session?.user?.email || (typeof window !== "undefined" ? localStorage.getItem("npw_user_email") : ""),
         phone: "",
         bio: "",
         location: ""
@@ -34,7 +35,7 @@ export default function ProfilePage() {
         })
     }
 
-    if (!session) {
+    if (!session && !hasLocal) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">

@@ -16,6 +16,7 @@ import {
   LogOut,
   Search,
   Filter,
+  Eye,
   RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
@@ -31,9 +32,19 @@ export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
 
+  // Determine current role early so hooks can depend on it before any early returns
+  const rawRole = roleFromUrl ||
+    (typeof window !== "undefined" ? localStorage.getItem("npw_role") : null) ||
+    session?.role ||
+    "customer";
+  const currentRole = rawRole === "client" ? "customer" : rawRole;
+
+  // Clients are allowed to view a client dashboard now; no redirect here
+
   useEffect(() => {
     if (status === "loading") return;
-    if (!session) {
+    const hasLocalToken = typeof window !== "undefined" && !!localStorage.getItem("npw_token");
+    if (!session && !hasLocalToken) {
       router.push("/auth/signin");
       return;
     }
@@ -133,10 +144,12 @@ export default function DashboardPage() {
               localStorage.removeItem("npw_token");
             }
           }
-          throw new Error("Failed to fetch stats");
+          // Graceful fallback
+          setStats({});
+        } else {
+          const data = await res.json();
+          setStats(data);
         }
-        const data = await res.json();
-        setStats(data);
       } catch (error) {
         console.error("Failed to fetch stats:", error);
       } finally {
@@ -157,7 +170,8 @@ export default function DashboardPage() {
     );
   }
 
-  if (!session) {
+  // Allow rendering if either session or local token exists
+  if (!session && !(typeof window !== "undefined" && localStorage.getItem("npw_token"))) {
     return null;
   }
 
@@ -168,15 +182,7 @@ export default function DashboardPage() {
     signOut({ callbackUrl: "/" });
   };
 
-  // Get role with proper normalization: URL param > localStorage > session > default
-  const rawRole = roleFromUrl || 
-    (typeof window !== "undefined" ? localStorage.getItem("npw_role") : null) ||
-    session?.role ||
-    "customer";
-  
-  // Normalize "client" to "customer" for backend compatibility
-  // But keep "client" for display if it's "customer" in backend
-  const currentRole = rawRole === "client" ? "customer" : rawRole;
+  // currentRole already computed above
 
   return (
     <div className="min-h-screen bg-white">
@@ -209,12 +215,12 @@ export default function DashboardPage() {
               </Button>
               <div className="flex items-center space-x-2">
                 <img
-                  src={session.user?.image || "/logo.png"}
+                  src={session?.user?.image || "/logo.png"}
                   alt="Profile"
                   className="h-8 w-8 rounded-full"
                 />
                 <span className="text-sm font-medium text-gray-700">
-                  {session.user?.name}
+                  {session?.user?.name || (typeof window !== "undefined" ? localStorage.getItem("npw_user_name") : "")}
                 </span>
               </div>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
@@ -364,7 +370,7 @@ export default function DashboardPage() {
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Name:</span>
                     <span className="text-sm font-medium">
-                      {session.user?.name}
+                      {session?.user?.name || (typeof window !== "undefined" ? localStorage.getItem("npw_user_name") : "")}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -372,7 +378,7 @@ export default function DashboardPage() {
                       Email:
                     </span>
                     <span className="text-sm font-medium">
-                      {session.user?.email}
+                      {session?.user?.email || (typeof window !== "undefined" ? localStorage.getItem("npw_user_email") : "")}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -424,13 +430,13 @@ export default function DashboardPage() {
                   <div>
                     <label className="text-sm font-medium">Name</label>
                     <p className="text-sm text-muted-foreground">
-                      {session.user?.name}
+                      {session?.user?.name || (typeof window !== "undefined" ? localStorage.getItem("npw_user_name") : "")}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium">Email</label>
                     <p className="text-sm text-muted-foreground">
-                      {session.user?.email}
+                      {session?.user?.email || (typeof window !== "undefined" ? localStorage.getItem("npw_user_email") : "")}
                     </p>
                   </div>
                 </div>

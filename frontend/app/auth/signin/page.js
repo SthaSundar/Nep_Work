@@ -37,7 +37,13 @@ export default function SignInPage() {
     const checkSession = async () => {
       const session = await getSession()
       if (session) {
-        router.push("/dashboard")
+        const localRole = (typeof window !== "undefined" && localStorage.getItem("npw_role")) || session.role || "customer"
+        const redirectRole = localRole === "customer" ? "client" : localRole
+        if (localRole === "customer") {
+          router.push("/")
+        } else {
+          router.push(`/dashboard?role=${redirectRole}`)
+        }
       }
     }
     checkSession()
@@ -50,8 +56,10 @@ export default function SignInPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem("npw_role", role)
       }
+      const redirectRole = role === "customer" ? "client" : role
       await signIn("google", {
-        callbackUrl: `/dashboard?role=${role}`,
+        callbackUrl: redirectRole === "client" ? "/" : `/dashboard?role=${redirectRole}`,
+        prompt: "select_account",
       })
     } catch (error) {
       console.error("Sign in error:", error)
@@ -154,6 +162,8 @@ export default function SignInPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem("npw_token", data.token)
         localStorage.setItem("npw_role", actualRole)
+        if (data?.user?.email) localStorage.setItem("npw_user_email", data.user.email)
+        if (data?.user?.name || formData.username) localStorage.setItem("npw_user_name", data.user.name || formData.username)
       }
 
       // Sync with NextAuth for session management with actual role from backend
@@ -174,10 +184,13 @@ export default function SignInPage() {
         console.warn("Sync error (non-critical):", syncError)
       }
 
-      // Redirect to dashboard with actual role from backend
-      // Map "customer" to display as "client" in URL if needed
+      // Redirect based on actual role from backend
       const redirectRole = actualRole === "customer" ? "client" : actualRole
-      window.location.href = `/dashboard?role=${redirectRole}`
+      if (redirectRole === "client") {
+        window.location.href = "/"
+      } else {
+        window.location.href = `/dashboard?role=${redirectRole}`
+      }
     } catch (err) {
       setError(err.message)
       setIsLoading(false)

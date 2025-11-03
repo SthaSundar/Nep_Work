@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Search, Handshake, Star, CheckCircle } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { useEffect, useState } from "react"
 
 const steps = [
     {
@@ -27,6 +29,20 @@ const steps = [
 ]
 
 export default function HowItWorks() {
+    const { data: session } = useSession()
+    const [cta, setCta] = useState({ showClient: true, showProvider: true })
+
+    useEffect(() => {
+        const isBrowser = typeof window !== "undefined"
+        const hasToken = isBrowser && !!localStorage.getItem("npw_token")
+        const localRole = (isBrowser ? localStorage.getItem("npw_role") : null) || session?.role || "customer"
+        const displayRole = localRole === "customer" ? "client" : localRole
+        const isLoggedIn = !!session || hasToken
+        // When logged out: show both. When logged in: hide current role.
+        const showClient = !isLoggedIn || displayRole !== "client"
+        const showProvider = !isLoggedIn || displayRole !== "provider"
+        setCta({ showClient, showProvider })
+    }, [session?.role])
     return (
         <section className="py-16 px-4 bg-blue-50 text-blue-900">
             <div className="max-w-7xl mx-auto">
@@ -67,12 +83,16 @@ export default function HowItWorks() {
                             Join thousands of satisfied customers and service providers on NepWork
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                            <a href="/auth/signin" className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors">
-                                Join as Client
-                            </a>
-                            <a href="/auth/signin?role=provider" className="inline-flex items-center justify-center px-6 py-3 bg-blue-500 text-white font-medium rounded-md hover:bg-blue-600 transition-colors">
-                                Join as Provider
-                            </a>
+                            {cta.showClient && (
+                                <a href="/auth/signin" className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors">
+                                    Join as Client
+                                </a>
+                            )}
+                            {cta.showProvider && (
+                                <a href="/auth/signin?role=provider" className="inline-flex items-center justify-center px-6 py-3 bg-blue-500 text-white font-medium rounded-md hover:bg-blue-600 transition-colors">
+                                    Join as Provider
+                                </a>
+                            )}
                         </div>
                     </div>
                 </div>

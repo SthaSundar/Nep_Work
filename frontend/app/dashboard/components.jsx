@@ -16,18 +16,25 @@ export function ServicesList({ role, session }) {
         const run = async () => {
             setLoading(true)
             try {
-                const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
-                const headers = token ? {
-                    "Authorization": `Bearer ${token}`,
+                const localToken = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+                const bearer = localToken || session?.accessToken || null
+                const headers = bearer ? {
+                    "Authorization": `Bearer ${bearer}`,
                     "Content-Type": "application/json"
                 } : { "Content-Type": "application/json" }
 
                 // Map role - "client" is displayed but backend uses "customer"
                 const backendRole = role === "client" ? "customer" : role
-                const url = backendRole === "provider"
-                    ? `${process.env.NEXT_PUBLIC_API_URL}/services/services/my/`
-                    : `${process.env.NEXT_PUBLIC_API_URL}/services/services/`
-                
+                let url
+                if (backendRole === "provider") {
+                    // If provider but no bearer token (e.g., Google-only login), fallback to public list to avoid 401
+                    url = bearer
+                        ? `${process.env.NEXT_PUBLIC_API_URL}/services/services/my/`
+                        : `${process.env.NEXT_PUBLIC_API_URL}/services/services/`
+                } else {
+                    url = `${process.env.NEXT_PUBLIC_API_URL}/services/services/`
+                }
+
                 const res = await fetch(url, { headers })
                 if (!res.ok) throw new Error("Failed to load services")
                 
@@ -101,15 +108,21 @@ export function BookingsList({ role, session }) {
         const run = async () => {
             setLoading(true)
             try {
-                const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
-                const headers = token ? {
-                    "Authorization": `Bearer ${token}`,
+                const localToken = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
+                const bearer = localToken || session?.accessToken || null
+                if (!bearer) {
+                    setError("Sign in to view bookings.")
+                    setItems([])
+                    return
+                }
+                const headers = {
+                    "Authorization": `Bearer ${bearer}`,
                     "Content-Type": "application/json"
-                } : { "Content-Type": "application/json" }
+                }
 
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bookings/mine/`, { headers })
                 if (!res.ok) throw new Error("Failed to load bookings")
-                
+
                 const data = await res.json()
                 setItems(Array.isArray(data) ? data : [])
             } catch (e) {

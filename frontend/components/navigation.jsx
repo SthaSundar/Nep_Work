@@ -15,8 +15,18 @@ import { User, LogOut, Settings, Briefcase, Calendar } from "lucide-react"
 
 export default function Navigation() {
     const { data: session, status } = useSession()
+    const isBrowser = typeof window !== "undefined"
+    const localToken = isBrowser ? localStorage.getItem("npw_token") : null
+    const localName = isBrowser ? localStorage.getItem("npw_user_name") : null
+    const localEmail = isBrowser ? localStorage.getItem("npw_user_email") : null
 
     const handleSignOut = () => {
+        if (typeof window !== "undefined") {
+            localStorage.removeItem("npw_token")
+            localStorage.removeItem("npw_role")
+            localStorage.removeItem("npw_user_name")
+            localStorage.removeItem("npw_user_email")
+        }
         signOut({ callbackUrl: "/" })
     }
 
@@ -70,28 +80,28 @@ export default function Navigation() {
                     <div className="flex items-center space-x-4">
                         {status === "loading" ? (
                             <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
-                        ) : session ? (
+                        ) : (session || localToken) ? (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="flex items-center space-x-2">
                                         <Image
-                                            src={session.user?.image || "/logo.png"}
+                                            src={session?.user?.image || "/logo.png"}
                                             alt="Profile"
                                             width={24}
                                             height={24}
                                             className="h-6 w-6 rounded-full"
                                         />
                                         <span className="hidden sm:block text-sm font-medium">
-                                            {session.user?.name}
+                                            {session?.user?.name || localName || "Account"}
                                         </span>
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56">
                                     <div className="flex items-center justify-start gap-2 p-2">
                                         <div className="flex flex-col space-y-1 leading-none">
-                                            <p className="font-medium">{session.user?.name}</p>
+                                            <p className="font-medium">{session?.user?.name || localName || "Account"}</p>
                                             <p className="w-[200px] truncate text-sm text-muted-foreground">
-                                                {session.user?.email}
+                                                {session?.user?.email || localEmail || ""}
                                             </p>
                                         </div>
                                     </div>

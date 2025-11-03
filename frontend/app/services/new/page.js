@@ -19,6 +19,11 @@ export default function NewServicePage() {
     category: "",
     certificates: "",
     degrees: "",
+    time_slots: [],
+    certificate_photo: null,
+    certificate_description: "",
+    degree_photo: null,
+    degree_description: "",
   })
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -59,34 +64,54 @@ export default function NewServicePage() {
     setForm((f) => ({ ...f, [name]: value }))
   }
 
+  const handleFile = (name, file) => {
+    setForm((f) => ({ ...f, [name]: file }))
+  }
+
+  const addTimeSlot = () => {
+    setForm((f) => ({ ...f, time_slots: [...(f.time_slots || []), ""] }))
+  }
+
+  const updateTimeSlot = (idx, value) => {
+    setForm((f) => ({ ...f, time_slots: f.time_slots.map((t, i) => i === idx ? value : t) }))
+  }
+
+  const removeTimeSlot = (idx) => {
+    setForm((f) => ({ ...f, time_slots: f.time_slots.filter((_, i) => i !== idx) }))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
     setLoading(true)
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("npw_token") : null
-      const headers = {
-        "Content-Type": "application/json",
-      }
+      const headers = {}
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
       } else {
         headers["X-User-Email"] = session?.user?.email || ""
       }
 
+      const body = new FormData()
+      body.append("title", form.title)
+      body.append("description", form.description)
+      body.append("base_price", form.base_price)
+      body.append("pricing_type", form.pricing_type)
+      body.append("location", form.location)
+      if (form.category) body.append("category", String(Number(form.category)))
+      if (form.certificates) body.append("certificates", form.certificates)
+      if (form.degrees) body.append("degrees", form.degrees)
+      if (form.time_slots && form.time_slots.length) body.append("time_slots", JSON.stringify(form.time_slots))
+      if (form.certificate_photo) body.append("certificate_photo", form.certificate_photo)
+      if (form.certificate_description) body.append("certificate_description", form.certificate_description)
+      if (form.degree_photo) body.append("degree_photo", form.degree_photo)
+      if (form.degree_description) body.append("degree_description", form.degree_description)
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services/services/create/`, {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description,
-          base_price: form.base_price,
-          pricing_type: form.pricing_type,
-          location: form.location,
-          category: Number(form.category) || null,
-          certificates: form.certificates,
-          degrees: form.degrees,
-        }),
+        body,
       })
       
       if (!res.ok) {
@@ -154,6 +179,16 @@ export default function NewServicePage() {
                 rows={3}
                 placeholder="List your certificates (e.g., AWS Certified, Google Cloud Professional, etc.)"
               />
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm">Certificate Photo (optional)</label>
+                <input type="file" accept="image/*" onChange={(e) => handleFile("certificate_photo", e.target.files?.[0] || null)} />
+              </div>
+              <div>
+                <label className="block text-sm">Certificate Description (optional)</label>
+                <Input name="certificate_description" value={form.certificate_description} onChange={handleChange} />
+              </div>
+            </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Degrees & Qualifications</label>
@@ -165,7 +200,29 @@ export default function NewServicePage() {
                 rows={3}
                 placeholder="List your educational degrees and qualifications (e.g., B.Sc. Computer Science, M.Sc. Engineering, etc.)"
               />
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm">Degree Photo (optional)</label>
+                <input type="file" accept="image/*" onChange={(e) => handleFile("degree_photo", e.target.files?.[0] || null)} />
+              </div>
+              <div>
+                <label className="block text-sm">Degree Description (optional)</label>
+                <Input name="degree_description" value={form.degree_description} onChange={handleChange} />
+              </div>
             </div>
+            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Available Time Slots</label>
+            <div className="space-y-2">
+              {(form.time_slots || []).map((t, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input value={t} onChange={(e) => updateTimeSlot(i, e.target.value)} placeholder="e.g., Mon-Fri 10:00-18:00" />
+                  <Button type="button" variant="outline" onClick={() => removeTimeSlot(i)}>Remove</Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={addTimeSlot}>Add Time Slot</Button>
+            </div>
+          </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit" disabled={loading}>{loading ? "Creating..." : "Create Service"}</Button>
           </form>
